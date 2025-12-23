@@ -11,17 +11,17 @@ services:
     ports:
       - "5000:5000"
     environment:
+      # 必填：阿里云百炼 API Key
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      # OSS 配置（可选，但强烈建议配置）
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET}
+      - OSS_BUCKET_NAME=${OSS_BUCKET_NAME}
+      - OSS_ENDPOINT=${OSS_ENDPOINT:-oss-cn-shanghai.aliyuncs.com}
       - FLASK_ENV=production
     volumes:
-      # 持久化上传和下载的文件
       - ./data/uploads:/app/uploads
       - ./data/downloads:/app/downloads
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     logging:
       driver: "json-file"
       options:
