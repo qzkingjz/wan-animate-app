@@ -25,5 +25,5 @@
 ### 2. 获取代码
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/qzkingjz/wan-animate-app
 cd wan-animate-app
