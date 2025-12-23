@@ -1,0 +1,29 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  wan-animate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wan-animate-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - FLASK_ENV=production
+    volumes:
+      # 持久化上传和下载的文件
+      - ./data/uploads:/app/uploads
+      - ./data/downloads:/app/downloads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
