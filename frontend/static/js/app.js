@@ -10,6 +10,7 @@ class WanAnimateApp {
         this.pollingInterval = null;
         this.localVideoUrl = null;
         this.originalVideoUrl = null;
+        this.ossConfigured = false;
         
         this.init();
     }
@@ -18,7 +19,27 @@ class WanAnimateApp {
         this.bindElements();
         this.bindEvents();
         this.loadHistory();
+        await this.checkConfig();
         console.log('[初始化] 应用已启动');
+    }
+
+    async checkConfig() {
+        try {
+            const res = await fetch('/api/config');
+            const config = await res.json();
+            this.ossConfigured = config.oss_configured;
+            
+            if (!config.api_key_configured) {
+                this.showToast('警告: API Key 未配置', 'warning');
+            }
+            if (!config.oss_configured) {
+                console.log('[配置] OSS 未配置，上传功能受限');
+            } else {
+                console.log('[配置] OSS 已配置:', config.oss_bucket);
+            }
+        } catch (e) {
+            console.error('[配置] 检查失败:', e);
+        }
     }
     
     bindElements() {
@@ -129,13 +150,28 @@ class WanAnimateApp {
     }
     
     async uploadImage(file) {
-        const fd = new FormData(); fd.append('image', file);
+        const fd = new FormData();
+        fd.append('image', file);
         try {
+            this.showToast('上传图片中...', 'info');
             const res = await fetch('/api/upload/image', { method: 'POST', body: fd });
             const data = await res.json();
-            if (data.success) { this.imageUrl = data.url; this.showToast('图片上传成功', 'success'); }
-            else throw new Error(data.error);
-        } catch (e) { this.showToast('上传失败', 'error'); this.removeImage(); }
+            
+            if (data.success) {
+                this.imageUrl = data.url;
+                
+                if (data.storage === 'local' && data.warning) {
+                    this.showToast('图片已保存，但需要输入公网URL才能生成视频', 'warning');
+                } else {
+                    this.showToast('图片上传成功', 'success');
+                }
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            this.showToast('上传失败: ' + e.message, 'error');
+            this.removeImage();
+        }
     }
     
     removeImage(e) {
@@ -165,13 +201,28 @@ class WanAnimateApp {
     }
     
     async uploadVideo(file) {
-        const fd = new FormData(); fd.append('video', file);
+        const fd = new FormData();
+        fd.append('video', file);
         try {
+            this.showToast('上传视频中...', 'info');
             const res = await fetch('/api/upload/video', { method: 'POST', body: fd });
             const data = await res.json();
-            if (data.success) { this.videoUrl = data.url; this.showToast('视频上传成功', 'success'); }
-            else throw new Error(data.error);
-        } catch (e) { this.showToast('上传失败', 'error'); this.removeVideo(); }
+            
+            if (data.success) {
+                this.videoUrl = data.url;
+                
+                if (data.storage === 'local' && data.warning) {
+                    this.showToast('视频已保存，但需要输入公网URL才能生成视频', 'warning');
+                } else {
+                    this.showToast('视频上传成功', 'success');
+                }
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            this.showToast('上传失败: ' + e.message, 'error');
+            this.removeVideo();
+        }
     }
     
     removeVideo(e) {
