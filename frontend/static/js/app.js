@@ -1,4 +1,4 @@
-// frontend/static/js/app.js - 完整修复版
+// frontend/static/js/app.js - 完整版（含OSS支持）
 
 class WanAnimateApp {
     constructor() {
@@ -15,14 +15,14 @@ class WanAnimateApp {
         this.init();
     }
     
-    init() {
+    async init() {
         this.bindElements();
         this.bindEvents();
         this.loadHistory();
         await this.checkConfig();
         console.log('[初始化] 应用已启动');
     }
-
+    
     async checkConfig() {
         try {
             const res = await fetch('/api/config');
@@ -33,9 +33,10 @@ class WanAnimateApp {
                 this.showToast('警告: API Key 未配置', 'warning');
             }
             if (!config.oss_configured) {
-                console.log('[配置] OSS 未配置，上传功能受限');
+                console.log('[配置] OSS 未配置，需要手动输入URL');
             } else {
                 console.log('[配置] OSS 已配置:', config.oss_bucket);
+                this.showToast('OSS 已连接，可直接上传文件', 'success');
             }
         } catch (e) {
             console.error('[配置] 检查失败:', e);
@@ -80,64 +81,187 @@ class WanAnimateApp {
     }
     
     bindEvents() {
+        // 图片上传区域点击
         if (this.imageUploadArea) {
             this.imageUploadArea.addEventListener('click', (e) => {
-                if (!e.target.closest('.remove-btn')) this.imageInput.click();
+                // 排除删除按钮的点击
+                if (e.target.closest('.remove-btn')) return;
+                if (this.imageInput) {
+                    this.imageInput.click();
+                }
             });
-            this.imageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.classList.add('dragover'); });
-            this.imageUploadArea.addEventListener('dragleave', (e) => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); });
+            this.imageUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.imageUploadArea.classList.add('dragover');
+            });
+            this.imageUploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.imageUploadArea.classList.remove('dragover');
+            });
             this.imageUploadArea.addEventListener('drop', (e) => this.handleImageDrop(e));
         }
-        if (this.imageInput) this.imageInput.addEventListener('change', (e) => this.handleImageSelect(e));
-        if (this.removeImageBtn) this.removeImageBtn.addEventListener('click', (e) => this.removeImage(e));
         
+        // 图片input变化
+        if (this.imageInput) {
+            this.imageInput.addEventListener('change', (e) => this.handleImageSelect(e));
+        }
+        
+        // 删除图片按钮
+        if (this.removeImageBtn) {
+            this.removeImageBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeImage();
+            });
+        }
+        
+        // 视频上传区域点击
         if (this.videoUploadArea) {
             this.videoUploadArea.addEventListener('click', (e) => {
-                if (!e.target.closest('.remove-btn')) this.videoInput.click();
+                if (e.target.closest('.remove-btn')) return;
+                if (this.videoInput) {
+                    this.videoInput.click();
+                }
             });
-            this.videoUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); e.currentTarget.classList.add('dragover'); });
-            this.videoUploadArea.addEventListener('dragleave', (e) => { e.preventDefault(); e.currentTarget.classList.remove('dragover'); });
+            this.videoUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.videoUploadArea.classList.add('dragover');
+            });
+            this.videoUploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.videoUploadArea.classList.remove('dragover');
+            });
             this.videoUploadArea.addEventListener('drop', (e) => this.handleVideoDrop(e));
         }
-        if (this.videoInput) this.videoInput.addEventListener('change', (e) => this.handleVideoSelect(e));
-        if (this.removeVideoBtn) this.removeVideoBtn.addEventListener('click', (e) => this.removeVideo(e));
         
-        if (this.confirmImageUrlBtn) this.confirmImageUrlBtn.addEventListener('click', () => this.useImageUrl());
-        if (this.confirmVideoUrlBtn) this.confirmVideoUrlBtn.addEventListener('click', () => this.useVideoUrl());
-        if (this.generateBtn) this.generateBtn.addEventListener('click', () => this.generateVideo());
-        if (this.downloadBtn) this.downloadBtn.addEventListener('click', () => this.downloadVideo());
-        if (this.regenerateBtn) this.regenerateBtn.addEventListener('click', () => this.regenerate());
-        if (this.retryBtn) this.retryBtn.addEventListener('click', () => this.regenerate());
-        if (this.refreshHistoryBtn) this.refreshHistoryBtn.addEventListener('click', () => this.loadHistory());
+        // 视频input变化
+        if (this.videoInput) {
+            this.videoInput.addEventListener('change', (e) => this.handleVideoSelect(e));
+        }
+        
+        // 删除视频按钮
+        if (this.removeVideoBtn) {
+            this.removeVideoBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeVideo();
+            });
+        }
+        
+        // URL输入确认
+        if (this.confirmImageUrlBtn) {
+            this.confirmImageUrlBtn.addEventListener('click', () => this.useImageUrl());
+        }
+        if (this.confirmVideoUrlBtn) {
+            this.confirmVideoUrlBtn.addEventListener('click', () => this.useVideoUrl());
+        }
+        
+        // 生成按钮
+        if (this.generateBtn) {
+            this.generateBtn.addEventListener('click', () => this.generateVideo());
+        }
+        
+        // 下载按钮
+        if (this.downloadBtn) {
+            this.downloadBtn.addEventListener('click', () => this.downloadVideo());
+        }
+        
+        // 重新生成按钮
+        if (this.regenerateBtn) {
+            this.regenerateBtn.addEventListener('click', () => this.regenerate());
+        }
+        
+        // 重试按钮
+        if (this.retryBtn) {
+            this.retryBtn.addEventListener('click', () => this.regenerate());
+        }
+        
+        // 刷新历史记录
+        if (this.refreshHistoryBtn) {
+            this.refreshHistoryBtn.addEventListener('click', () => this.loadHistory());
+        }
     }
     
     showState(state) {
-        ['emptyState', 'generatingState', 'resultState', 'errorState'].forEach(s => {
-            if (this[s]) this[s].style.display = 'none';
-        });
-        const el = this[state + 'State'];
-        if (el) el.style.display = 'flex';
+        if (this.emptyState) this.emptyState.style.display = 'none';
+        if (this.generatingState) this.generatingState.style.display = 'none';
+        if (this.resultState) this.resultState.style.display = 'none';
+        if (this.errorState) this.errorState.style.display = 'none';
+        
+        const stateEl = {
+            'empty': this.emptyState,
+            'generating': this.generatingState,
+            'result': this.resultState,
+            'error': this.errorState
+        }[state];
+        
+        if (stateEl) stateEl.style.display = 'flex';
     }
     
     showToast(msg, type = 'info') {
         console.log(`[Toast] ${type}: ${msg}`);
         if (!this.toastContainer) return;
+        
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'times' : 'info'}-circle"></i><span>${msg}</span>`;
+        const iconMap = {
+            'success': 'fa-check-circle',
+            'error': 'fa-times-circle',
+            'warning': 'fa-exclamation-triangle',
+            'info': 'fa-info-circle'
+        };
+        toast.innerHTML = `<i class="fas ${iconMap[type] || iconMap.info}"></i><span>${msg}</span>`;
         this.toastContainer.appendChild(toast);
-        setTimeout(() => { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 300); }, 3000);
+        
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
     
-    handleImageSelect(e) { if (e.target.files[0]) this.processImage(e.target.files[0]); }
+    // ========== 图片处理 ==========
+    
+    handleImageSelect(e) {
+        const file = e.target.files[0];
+        if (file) {
+            console.log('[图片] 选择文件:', file.name);
+            this.processImage(file);
+        }
+    }
+    
     handleImageDrop(e) {
-        e.preventDefault(); e.currentTarget.classList.remove('dragover');
+        e.preventDefault();
+        e.stopPropagation();
+        this.imageUploadArea.classList.remove('dragover');
+        
         const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) this.processImage(file);
+        if (file && file.type.startsWith('image/')) {
+            console.log('[图片] 拖放文件:', file.name);
+            this.processImage(file);
+        } else {
+            this.showToast('请上传图片文件', 'error');
+        }
     }
     
     async processImage(file) {
-        if (file.size > 5 * 1024 * 1024) { this.showToast('图片不能超过5MB', 'error'); return; }
+        // 验证大小
+        if (file.size > 5 * 1024 * 1024) {
+            this.showToast('图片大小不能超过 5MB', 'error');
+            return;
+        }
+        
+        // 验证格式
+        const validTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            this.showToast('请上传 JPG/PNG/BMP/WEBP 格式图片', 'error');
+            return;
+        }
+        
+        this.imageFile = file;
+        
+        // 显示预览
         const reader = new FileReader();
         reader.onload = (e) => {
             if (this.previewImage) this.previewImage.src = e.target.result;
@@ -145,99 +269,167 @@ class WanAnimateApp {
             if (this.imagePreview) this.imagePreview.style.display = 'block';
         };
         reader.readAsDataURL(file);
+        
+        // 上传
         await this.uploadImage(file);
         this.updateGenerateButton();
     }
     
     async uploadImage(file) {
-        const fd = new FormData();
-        fd.append('image', file);
+        const formData = new FormData();
+        formData.append('image', file);
+        
         try {
             this.showToast('上传图片中...', 'info');
-            const res = await fetch('/api/upload/image', { method: 'POST', body: fd });
+            
+            const res = await fetch('/api/upload/image', {
+                method: 'POST',
+                body: formData
+            });
             const data = await res.json();
+            
+            console.log('[图片] 上传结果:', data);
             
             if (data.success) {
                 this.imageUrl = data.url;
                 
-                if (data.storage === 'local' && data.warning) {
-                    this.showToast('图片已保存，但需要输入公网URL才能生成视频', 'warning');
+                if (data.storage === 'oss') {
+                    this.showToast('图片已上传到云存储', 'success');
+                } else if (data.warning) {
+                    this.showToast(data.warning, 'warning');
                 } else {
                     this.showToast('图片上传成功', 'success');
                 }
             } else {
-                throw new Error(data.error);
+                throw new Error(data.error || '上传失败');
             }
         } catch (e) {
+            console.error('[图片] 上传失败:', e);
             this.showToast('上传失败: ' + e.message, 'error');
             this.removeImage();
         }
     }
     
-    removeImage(e) {
-        if (e) e.stopPropagation();
+    removeImage() {
+        this.imageFile = null;
         this.imageUrl = null;
         if (this.imageInput) this.imageInput.value = '';
         if (this.previewImage) this.previewImage.src = '';
         if (this.imagePlaceholder) this.imagePlaceholder.style.display = 'flex';
         if (this.imagePreview) this.imagePreview.style.display = 'none';
+        if (this.imageUrlInput) this.imageUrlInput.value = '';
         this.updateGenerateButton();
     }
     
-    handleVideoSelect(e) { if (e.target.files[0]) this.processVideo(e.target.files[0]); }
+    // ========== 视频处理 ==========
+    
+    handleVideoSelect(e) {
+        const file = e.target.files[0];
+        if (file) {
+            console.log('[视频] 选择文件:', file.name);
+            this.processVideo(file);
+        }
+    }
+    
     handleVideoDrop(e) {
-        e.preventDefault(); e.currentTarget.classList.remove('dragover');
+        e.preventDefault();
+        e.stopPropagation();
+        this.videoUploadArea.classList.remove('dragover');
+        
         const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('video/')) this.processVideo(file);
+        if (file && file.type.startsWith('video/')) {
+            console.log('[视频] 拖放文件:', file.name);
+            this.processVideo(file);
+        } else {
+            this.showToast('请上传视频文件', 'error');
+        }
     }
     
     async processVideo(file) {
-        if (file.size > 200 * 1024 * 1024) { this.showToast('视频不能超过200MB', 'error'); return; }
+        // 验证大小
+        if (file.size > 200 * 1024 * 1024) {
+            this.showToast('视频大小不能超过 200MB', 'error');
+            return;
+        }
+        
+        // 验证格式
+        const validTypes = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo'];
+        if (!validTypes.includes(file.type)) {
+            this.showToast('请上传 MP4/AVI/MOV 格式视频', 'error');
+            return;
+        }
+        
+        this.videoFile = file;
+        
+        // 显示预览
         if (this.previewVideo) this.previewVideo.src = URL.createObjectURL(file);
         if (this.videoPlaceholder) this.videoPlaceholder.style.display = 'none';
         if (this.videoPreview) this.videoPreview.style.display = 'block';
+        
+        // 上传
         await this.uploadVideo(file);
         this.updateGenerateButton();
     }
     
     async uploadVideo(file) {
-        const fd = new FormData();
-        fd.append('video', file);
+        const formData = new FormData();
+        formData.append('video', file);
+        
         try {
-            this.showToast('上传视频中...', 'info');
-            const res = await fetch('/api/upload/video', { method: 'POST', body: fd });
+            this.showToast('上传视频中（可能需要一些时间）...', 'info');
+            
+            const res = await fetch('/api/upload/video', {
+                method: 'POST',
+                body: formData
+            });
             const data = await res.json();
+            
+            console.log('[视频] 上传结果:', data);
             
             if (data.success) {
                 this.videoUrl = data.url;
                 
-                if (data.storage === 'local' && data.warning) {
-                    this.showToast('视频已保存，但需要输入公网URL才能生成视频', 'warning');
+                if (data.storage === 'oss') {
+                    this.showToast('视频已上传到云存储', 'success');
+                } else if (data.warning) {
+                    this.showToast(data.warning, 'warning');
                 } else {
                     this.showToast('视频上传成功', 'success');
                 }
             } else {
-                throw new Error(data.error);
+                throw new Error(data.error || '上传失败');
             }
         } catch (e) {
+            console.error('[视频] 上传失败:', e);
             this.showToast('上传失败: ' + e.message, 'error');
             this.removeVideo();
         }
     }
     
-    removeVideo(e) {
-        if (e) e.stopPropagation();
+    removeVideo() {
+        this.videoFile = null;
         this.videoUrl = null;
         if (this.videoInput) this.videoInput.value = '';
         if (this.previewVideo) this.previewVideo.src = '';
         if (this.videoPlaceholder) this.videoPlaceholder.style.display = 'flex';
         if (this.videoPreview) this.videoPreview.style.display = 'none';
+        if (this.videoUrlInput) this.videoUrlInput.value = '';
         this.updateGenerateButton();
     }
     
+    // ========== URL 输入 ==========
+    
     useImageUrl() {
-        const url = this.imageUrlInput?.value.trim();
-        if (!url?.startsWith('http')) { this.showToast('请输入有效URL', 'error'); return; }
+        const url = this.imageUrlInput ? this.imageUrlInput.value.trim() : '';
+        if (!url) {
+            this.showToast('请输入图片URL', 'warning');
+            return;
+        }
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            this.showToast('请输入有效的URL（以 http:// 或 https:// 开头）', 'error');
+            return;
+        }
+        
         this.imageUrl = url;
         if (this.previewImage) this.previewImage.src = url;
         if (this.imagePlaceholder) this.imagePlaceholder.style.display = 'none';
@@ -247,8 +439,16 @@ class WanAnimateApp {
     }
     
     useVideoUrl() {
-        const url = this.videoUrlInput?.value.trim();
-        if (!url?.startsWith('http')) { this.showToast('请输入有效URL', 'error'); return; }
+        const url = this.videoUrlInput ? this.videoUrlInput.value.trim() : '';
+        if (!url) {
+            this.showToast('请输入视频URL', 'warning');
+            return;
+        }
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            this.showToast('请输入有效的URL（以 http:// 或 https:// 开头）', 'error');
+            return;
+        }
+        
         this.videoUrl = url;
         if (this.previewVideo) this.previewVideo.src = url;
         if (this.videoPlaceholder) this.videoPlaceholder.style.display = 'none';
@@ -257,52 +457,91 @@ class WanAnimateApp {
         this.updateGenerateButton();
     }
     
+    // ========== 生成视频 ==========
+    
     updateGenerateButton() {
-        if (this.generateBtn) this.generateBtn.disabled = !(this.imageUrl && this.videoUrl);
+        if (this.generateBtn) {
+            this.generateBtn.disabled = !(this.imageUrl && this.videoUrl);
+        }
     }
     
     async generateVideo() {
-        if (!this.imageUrl || !this.videoUrl) { this.showToast('请先设置图片和视频', 'warning'); return; }
+        if (!this.imageUrl || !this.videoUrl) {
+            this.showToast('请先设置图片和视频', 'warning');
+            return;
+        }
         
-        const mode = document.querySelector('input[name="mode"]:checked')?.value || 'wan-std';
+        // 检查URL是否是公网可访问的
+        if (this.imageUrl.startsWith('/') || this.videoUrl.startsWith('/')) {
+            this.showToast('请使用公网可访问的URL（需要配置OSS或手动输入URL）', 'error');
+            return;
+        }
+        
+        const modeEl = document.querySelector('input[name="mode"]:checked');
+        const mode = modeEl ? modeEl.value : 'wan-std';
+        const checkImage = this.checkImageInput ? this.checkImageInput.checked : true;
+        
+        console.log('[生成] 开始生成', { imageUrl: this.imageUrl, videoUrl: this.videoUrl, mode });
         
         try {
             this.showState('generating');
-            if (this.generateBtn) { this.generateBtn.disabled = true; this.generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 生成中...'; }
+            if (this.generateBtn) {
+                this.generateBtn.disabled = true;
+                this.generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 生成中...';
+            }
             if (this.statusText) this.statusText.textContent = '创建任务中...';
             
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_url: this.imageUrl, video_url: this.videoUrl, mode })
+                body: JSON.stringify({
+                    image_url: this.imageUrl,
+                    video_url: this.videoUrl,
+                    mode: mode,
+                    check_image: checkImage
+                })
             });
+            
             const data = await res.json();
             console.log('[生成] 响应:', data);
             
             if (data.success) {
                 this.currentTaskId = data.task_id;
                 if (this.taskIdDisplay) this.taskIdDisplay.textContent = `任务ID: ${data.task_id}`;
-                this.showToast('任务创建成功', 'success');
+                this.showToast('任务创建成功，开始生成...', 'success');
                 this.startPolling();
             } else {
-                throw new Error(data.error);
+                throw new Error(data.error || '创建任务失败');
             }
         } catch (e) {
+            console.error('[生成] 失败:', e);
             this.showToast('生成失败: ' + e.message, 'error');
             this.showState('error');
             if (this.errorMessage) this.errorMessage.textContent = e.message;
-            if (this.generateBtn) { this.generateBtn.disabled = false; this.generateBtn.innerHTML = '<i class="fas fa-magic"></i> 生成视频'; }
+            this.resetGenerateButton();
         }
     }
+    
+    resetGenerateButton() {
+        if (this.generateBtn) {
+            this.generateBtn.disabled = !(this.imageUrl && this.videoUrl);
+            this.generateBtn.innerHTML = '<i class="fas fa-magic"></i> 生成视频';
+        }
+    }
+    
+    // ========== 任务轮询 ==========
     
     startPolling() {
         this.stopPolling();
         this.pollingInterval = setInterval(() => this.checkTaskStatus(), 8000);
-        setTimeout(() => this.checkTaskStatus(), 1000);
+        setTimeout(() => this.checkTaskStatus(), 2000);
     }
     
     stopPolling() {
-        if (this.pollingInterval) { clearInterval(this.pollingInterval); this.pollingInterval = null; }
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
     }
     
     async checkTaskStatus() {
@@ -311,39 +550,48 @@ class WanAnimateApp {
         try {
             const res = await fetch(`/api/task/${this.currentTaskId}`);
             const data = await res.json();
-            console.log('[轮询] 任务状态:', data);
+            console.log('[轮询] 状态:', data);
             
             if (!data.success) return;
             
             const status = data.task_status;
             if (this.statusText) {
-                this.statusText.textContent = { PENDING: '排队中...', RUNNING: '生成中(约2-5分钟)...', SUCCEEDED: '完成!', FAILED: '失败' }[status] || status;
+                const statusMap = {
+                    'PENDING': '排队中，请耐心等待...',
+                    'RUNNING': '生成中，预计需要2-5分钟...',
+                    'SUCCEEDED': '生成完成！',
+                    'FAILED': '生成失败'
+                };
+                this.statusText.textContent = statusMap[status] || status;
             }
             
             if (status === 'SUCCEEDED') {
                 this.stopPolling();
-                console.log('[轮询] 成功! video_url:', data.video_url);
-                
-                // 保存原始URL
                 this.originalVideoUrl = data.video_url;
+                console.log('[轮询] 成功，视频URL:', data.video_url);
                 
                 if (data.video_url) {
                     await this.saveAndPlayVideo(data.video_url);
-                } else {
-                    this.showToast('视频URL为空', 'error');
                 }
                 
                 this.showState('result');
-                if (this.generateBtn) { this.generateBtn.disabled = false; this.generateBtn.innerHTML = '<i class="fas fa-magic"></i> 生成视频'; }
-                if (this.videoDuration) this.videoDuration.textContent = data.video_duration ? `${parseFloat(data.video_duration).toFixed(2)}秒` : '-';
-                if (this.videoRatio) this.videoRatio.textContent = data.video_ratio || '-';
+                this.resetGenerateButton();
+                
+                if (this.videoDuration) {
+                    this.videoDuration.textContent = data.video_duration ? `${parseFloat(data.video_duration).toFixed(2)}秒` : '-';
+                }
+                if (this.videoRatio) {
+                    this.videoRatio.textContent = data.video_ratio || '-';
+                }
+                
                 this.loadHistory();
                 
             } else if (status === 'FAILED') {
                 this.stopPolling();
                 this.showState('error');
-                if (this.errorMessage) this.errorMessage.textContent = data.message || '生成失败';
-                if (this.generateBtn) { this.generateBtn.disabled = false; this.generateBtn.innerHTML = '<i class="fas fa-magic"></i> 生成视频'; }
+                if (this.errorMessage) this.errorMessage.textContent = data.message || '生成失败，请重试';
+                this.resetGenerateButton();
+                this.showToast('生成失败: ' + (data.message || '未知错误'), 'error');
             }
         } catch (e) {
             console.error('[轮询] 错误:', e);
@@ -351,7 +599,7 @@ class WanAnimateApp {
     }
     
     async saveAndPlayVideo(videoUrl) {
-        console.log('[保存] 开始保存视频:', videoUrl);
+        console.log('[保存] 开始保存视频');
         this.showToast('正在获取视频...', 'info');
         
         try {
@@ -369,18 +617,20 @@ class WanAnimateApp {
                     this.resultVideo.src = data.url;
                     this.resultVideo.load();
                 }
-                this.showToast('视频已就绪!', 'success');
+                this.showToast('视频已就绪！', 'success');
             } else {
                 throw new Error(data.error || '保存失败');
             }
         } catch (e) {
             console.error('[保存] 失败:', e);
-            this.showToast('获取视频失败，但您可以尝试下载', 'warning');
+            this.showToast('视频保存失败，但您可以尝试下载', 'warning');
         }
     }
     
+    // ========== 下载视频 ==========
+    
     async downloadVideo() {
-        console.log('[下载] 开始下载');
+        console.log('[下载] 开始');
         console.log('[下载] localVideoUrl:', this.localVideoUrl);
         console.log('[下载] originalVideoUrl:', this.originalVideoUrl);
         
@@ -396,7 +646,7 @@ class WanAnimateApp {
                     body: JSON.stringify({ video_url: this.originalVideoUrl })
                 });
                 const data = await res.json();
-                if (data.success) {
+                if (data.success && data.url) {
                     url = data.url;
                     this.localVideoUrl = url;
                 }
@@ -404,7 +654,7 @@ class WanAnimateApp {
                 console.error('[下载] 保存失败:', e);
             }
         }
-        // 继续 downloadVideo 方法
+        
         if (!url) {
             this.showToast('没有可下载的视频', 'warning');
             return;
@@ -412,7 +662,6 @@ class WanAnimateApp {
         
         console.log('[下载] 最终URL:', url);
         
-        // 执行下载
         const a = document.createElement('a');
         a.href = url;
         a.download = `wan_video_${Date.now()}.mp4`;
@@ -423,29 +672,31 @@ class WanAnimateApp {
         this.showToast('开始下载', 'success');
     }
     
+    // ========== 其他 ==========
+    
     regenerate() {
         this.showState('empty');
         this.currentTaskId = null;
         this.localVideoUrl = null;
         this.originalVideoUrl = null;
         this.stopPolling();
-        if (this.generateBtn) {
-            this.generateBtn.disabled = !(this.imageUrl && this.videoUrl);
-            this.generateBtn.innerHTML = '<i class="fas fa-magic"></i> 生成视频';
-        }
+        this.resetGenerateButton();
         if (this.resultVideo) this.resultVideo.src = '';
     }
     
     async loadHistory() {
         try {
             if (this.refreshHistoryBtn) this.refreshHistoryBtn.classList.add('spinning');
+            
             const res = await fetch('/api/tasks');
             const data = await res.json();
             
-            if (data.success && data.tasks?.length > 0) {
+            if (data.success && data.tasks && data.tasks.length > 0) {
                 this.renderHistory(data.tasks);
             } else {
-                if (this.historyList) this.historyList.innerHTML = '<div class="history-empty"><p>暂无历史记录</p></div>';
+                if (this.historyList) {
+                    this.historyList.innerHTML = '<div class="history-empty"><p>暂无历史记录</p></div>';
+                }
             }
         } catch (e) {
             console.error('[历史] 加载失败:', e);
@@ -458,11 +709,17 @@ class WanAnimateApp {
         if (!this.historyList) return;
         
         const sorted = tasks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        const statusMap = { pending: '排队中', running: '生成中', succeeded: '已完成', failed: '失败', unknown: '未知' };
+        const statusMap = {
+            'pending': '排队中',
+            'running': '生成中',
+            'succeeded': '已完成',
+            'failed': '失败',
+            'unknown': '未知'
+        };
         
         this.historyList.innerHTML = sorted.map(t => {
             const st = (t.status || 'unknown').toLowerCase();
-            const videoUrl = t.result?.video_url || '';
+            const videoUrl = (t.result && t.result.video_url) ? t.result.video_url : '';
             return `
                 <div class="history-item" data-task-id="${t.task_id}" data-video-url="${videoUrl}">
                     <div class="history-thumbnail"><i class="fas fa-video"></i></div>
